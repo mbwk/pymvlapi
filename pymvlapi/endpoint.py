@@ -14,6 +14,7 @@ class MarketingVillasUrls(object):
     MD5_TOKEN_ENDPOINT = ("/Security_GetMD5Hash", ["p_ToHash"],)
     VILLA_LIST_ENDPOINT = ("/getMVLVillaList", ["p_Token", "p_UserID"],)
     VILLA_RATES_ENDPOINT = ("/getVillaRates", ["p_Token", "p_UserID", "p_VillaID"],)
+    VILLA_UNAVAILABLE_DATES_ENDPOINT = ("/getVillaUnavailableDates", ["p_Token", "p_UserID", "p_VillaID", "p_EquateHoldToBook"],)
 
 
 class MarketingVillasApi(object):
@@ -152,4 +153,30 @@ class MarketingVillasApi(object):
             } for rate in rates_children[1:] ]
         }
         return villa_rates_obj
+
+    def _get_villa_unavailable_dates(self, villa_id: str) -> bytes:
+        request_uri = self._construct_endpoint(MarketingVillasUrls.VILLA_UNAVAILABLE_DATES_ENDPOINT,
+                {
+                    "p_Token": self.get_md5_token(),
+                    "p_UserID": self.user_id,
+                    "p_VillaID": villa_id,
+                    "p_EquateHoldToBook": "Y"
+                })
+        return self._make_request(request_uri)
+
+    def get_villa_unavailable_dates(self, villa_id: str) -> list:
+
+        def parse_date(datestr):
+            return datetime.datetime.strptime(datestr, "%Y-%m-%d")
+
+        tree = self._raw_bytes_to_tree(self._get_villa_unavailable_dates(villa_id))
+        unavailability_element = tree.getchildren()[0]
+        unavailabile_dates = unavailability_element.getchildren()
+        avail_dict = {}
+        avail_dict["unavailable_dates"] = [ {
+            "from": parse_date( unavail.find("From").text ),
+            "to": parse_date( unavail.find("To").text )
+        } for unavail in unavailabile_dates ]
+        return avail_dict
+
 
