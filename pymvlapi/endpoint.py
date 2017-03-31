@@ -13,8 +13,19 @@ class MarketingVillasUrls(object):
     TIME_TOKEN_ENDPOINT = ("/Security_GetTimeToken", [],)
     MD5_TOKEN_ENDPOINT = ("/Security_GetMD5Hash", ["p_ToHash"],)
     VILLA_LIST_ENDPOINT = ("/getMVLVillaList", ["p_Token", "p_UserID"],)
-    VILLA_RATES_ENDPOINT = ("/getVillaRates", ["p_Token", "p_UserID", "p_VillaID"],)
-    VILLA_UNAVAILABLE_DATES_ENDPOINT = ("/getVillaUnavailableDates", ["p_Token", "p_UserID", "p_VillaID", "p_EquateHoldToBook"],)
+    VILLA_RATES_ENDPOINT = ("/getVillaRates", ["p_Token", "p_UserID",
+        "p_VillaID"],)
+    VILLA_UNAVAILABLE_DATES_ENDPOINT = ("/getVillaUnavailableDates", [
+        "p_Token", "p_UserID", "p_VillaID", "p_EquateHoldToBook"],)
+    INSERT_TA_HOLD_BOOKING = ("/insertTAHoldBooking", ["p_Token",
+        "p_UserID", "p_TravelAgentID", "p_VillaID", "p_CIDate", "p_CODate",
+        "p_GuestFirstName", "p_GuestLastName", "p_Email",
+        "p_CountryOfResidence", "p_MobileNo", "p_TelNo", "p_TotalAdults",
+        "p_TotalChild", "p_TotalInfant", "p_SpecialRequest"],)
+
+
+class MarketingVillasApiError(Exception):
+    pass
 
 
 class MarketingVillasApi(object):
@@ -23,7 +34,7 @@ class MarketingVillasApi(object):
 
     Each API endpoint is associated with two methods of this class, both of
     which share a similar name to the API endpoint that they work with:
-    
+
     1.) A public method intended for general use, which returns the data
         retrieved from the endpoint in a nominally user/code-friendly
         format specific to that endpoint (e.g. a dictionary, or a plain
@@ -37,9 +48,10 @@ class MarketingVillasApi(object):
         method identifier is prefixed with a single underscore.
     """
 
-    def __init__(self, user_id: str, password: str):
+    def __init__(self, user_id: str, password: str, travel_agent_id: int):
         self.user_id = user_id
         self.password = password
+        self.travel_agent_id = travel_agent_id
 
 
     # Utilities and common operations
@@ -179,4 +191,49 @@ class MarketingVillasApi(object):
         } for unavail in unavailabile_dates ]
         return avail_dict
 
+
+    def _insert_ta_hold_booking(self, villa_id: str,
+            check_in: datetime.datetime, check_out: datetime.datetime,
+            first_name: str, last_name: str, email: str, country: str,
+            mobile: str, telno: str, adults: int, children: int, infants: int,
+            special_requests: str) -> bytes:
+        #datefmt = "%Y-%m-%d %H:%M:%S"
+        datefmt = "%Y-%m-%d"
+        request_uri = self._construct_endpoint(MarketingVillasUrls.INSERT_TA_HOLD_BOOKING,
+                {
+                    "p_Token": self.get_md5_token(),
+                    "p_UserID": self.user_id,
+                    "p_TravelAgentID": self.travel_agent_id,
+                    "p_VillaID": villa_id,
+                    "p_CIDate": check_in.strftime(datefmt),
+                    "p_CODate": check_out.strftime(datefmt),
+                    "p_GuestFirstName": first_name,
+                    "p_GuestLastName": last_name,
+                    "p_Email": email,
+                    "p_CountryOfResidence": country,
+                    "p_MobileNo": mobile,
+                    "p_TelNo": telno,
+                    "p_TotalAdults": adults,
+                    "p_TotalChild": children,
+                    "p_TotalInfant": infants,
+                    "p_SpecialRequest": special_requests
+                })
+        return self._make_request(request_uri)
+
+
+    def insert_ta_hold_booking(self, villa_id: str,
+            check_in: datetime.datetime, check_out: datetime.datetime,
+            first_name: str, last_name: str, email: str, country: str,
+            mobile: str, telno: str, adults: int, children: int, infants: int,
+            special_requests: str) -> dict:
+        tree = self._raw_bytes_to_tree(self._insert_ta_hold_booking(villa_id,
+            check_in, check_out, first_name, last_name, email, country, mobile,
+            telno, adults, children, infants, special_requests))
+        status = tree.attrib.get("status", "")
+        extrainfo = tree.getchildren()[0]
+
+        if status == "error":
+            raise MarketingVillasApiError(extrainfo.text)
+
+        return { "mvl_booking_id": extrainfo.text }
 
