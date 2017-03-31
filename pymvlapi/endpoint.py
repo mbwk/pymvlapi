@@ -4,6 +4,11 @@ from urllib.request import (urlopen)
 from posixpath import join as posixjoin
 from xml.etree import ElementTree as ET
 
+BOOKING_QUERY_ARGS = ["p_Token", "p_UserID", "p_TravelAgentID", "p_VillaID",
+        "p_CIDate", "p_CODate", "p_GuestFirstName", "p_GuestLastName", "p_Email",
+        "p_CountryOfResidence", "p_MobileNo", "p_TelNo", "p_TotalAdults",
+        "p_TotalChild", "p_TotalInfant", "p_SpecialRequest"]
+
 class MarketingVillasUrls(object):
     # Base Components
     BASE_URL = "http://ws.marketingvillas.com/"
@@ -17,11 +22,8 @@ class MarketingVillasUrls(object):
         "p_VillaID"],)
     VILLA_UNAVAILABLE_DATES_ENDPOINT = ("/getVillaUnavailableDates", [
         "p_Token", "p_UserID", "p_VillaID", "p_EquateHoldToBook"],)
-    INSERT_TA_HOLD_BOOKING = ("/insertTAHoldBooking", ["p_Token",
-        "p_UserID", "p_TravelAgentID", "p_VillaID", "p_CIDate", "p_CODate",
-        "p_GuestFirstName", "p_GuestLastName", "p_Email",
-        "p_CountryOfResidence", "p_MobileNo", "p_TelNo", "p_TotalAdults",
-        "p_TotalChild", "p_TotalInfant", "p_SpecialRequest"],)
+    INSERT_TA_HOLD_BOOKING = ("/insertTAHoldBooking", BOOKING_QUERY_ARGS,)
+    INSERT_TA_CONFIRMED_BOOKING = ("/insertTAConfirmedBooking", BOOKING_QUERY_ARGS,)
 
 
 class MarketingVillasApiError(Exception):
@@ -197,7 +199,6 @@ class MarketingVillasApi(object):
             first_name: str, last_name: str, email: str, country: str,
             mobile: str, telno: str, adults: int, children: int, infants: int,
             special_requests: str) -> bytes:
-        #datefmt = "%Y-%m-%d %H:%M:%S"
         datefmt = "%Y-%m-%d"
         request_uri = self._construct_endpoint(MarketingVillasUrls.INSERT_TA_HOLD_BOOKING,
                 {
@@ -227,6 +228,51 @@ class MarketingVillasApi(object):
             mobile: str, telno: str, adults: int, children: int, infants: int,
             special_requests: str) -> dict:
         tree = self._raw_bytes_to_tree(self._insert_ta_hold_booking(villa_id,
+            check_in, check_out, first_name, last_name, email, country, mobile,
+            telno, adults, children, infants, special_requests))
+        status = tree.attrib.get("status", "")
+        extrainfo = tree.getchildren()[0]
+
+        if status == "error":
+            raise MarketingVillasApiError(extrainfo.text)
+
+        return { "mvl_booking_id": extrainfo.text }
+
+
+    def _insert_ta_confirmed_booking(self, villa_id: str,
+            check_in: datetime.datetime, check_out: datetime.datetime,
+            first_name: str, last_name: str, email: str, country: str,
+            mobile: str, telno: str, adults: int, children: int, infants: int,
+            special_requests: str) -> bytes:
+        datefmt = "%Y-%m-%d"
+        request_uri = self._construct_endpoint(MarketingVillasUrls.INSERT_TA_CONFIRMED_BOOKING,
+                {
+                    "p_Token": self.get_md5_token(),
+                    "p_UserID": self.user_id,
+                    "p_TravelAgentID": self.travel_agent_id,
+                    "p_VillaID": villa_id,
+                    "p_CIDate": check_in.strftime(datefmt),
+                    "p_CODate": check_out.strftime(datefmt),
+                    "p_GuestFirstName": first_name,
+                    "p_GuestLastName": last_name,
+                    "p_Email": email,
+                    "p_CountryOfResidence": country,
+                    "p_MobileNo": mobile,
+                    "p_TelNo": telno,
+                    "p_TotalAdults": adults,
+                    "p_TotalChild": children,
+                    "p_TotalInfant": infants,
+                    "p_SpecialRequest": special_requests
+                })
+        return self._make_request(request_uri)
+
+
+    def insert_ta_confirmed_booking(self, villa_id: str,
+            check_in: datetime.datetime, check_out: datetime.datetime,
+            first_name: str, last_name: str, email: str, country: str,
+            mobile: str, telno: str, adults: int, children: int, infants: int,
+            special_requests: str) -> dict:
+        tree = self._raw_bytes_to_tree(self._insert_ta_confirmed_booking(villa_id,
             check_in, check_out, first_name, last_name, email, country, mobile,
             telno, adults, children, infants, special_requests))
         status = tree.attrib.get("status", "")

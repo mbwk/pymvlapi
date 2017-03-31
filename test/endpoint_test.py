@@ -182,6 +182,48 @@ class InsertTaHoldBookingTestCase(EndpointTestCase):
         self.assertRaises(MarketingVillasApiError, self.mvlapi.insert_ta_hold_booking, *self.sample_api_arguments)
 
 
+class InsertTaConfirmedBookingTestCase(EndpointTestCase):
+    def setUp(self):
+        super(InsertTaConfirmedBookingTestCase, self).setUp()
+        self.sample_response_dict = {
+            "mvl_booking_id": "20170329180131JD"
+        }
+
+        self.sample_failure_bytes = b'<?xml version="1.0" encoding="utf-8"?>\r\n<Response status="error">\r\n  <ExtraInfo>[The dates you selected are no longer available.]</ExtraInfo>\r\n</Response>'
+        self.sample_response_bytes = b'<?xml version="1.0" encoding="utf-8"?>\r\n<Response status="ok">\r\n  <ExtraInfo>20170329180131JD</ExtraInfo>\r\n</Response>'
+
+        self.sample_api_arguments = [
+            "Arnalaya",
+            datetime.datetime(2017, 11, 11),
+            datetime.datetime(2017, 11, 15),
+            "John",
+            "Doe",
+            "john@example.com",
+            "Isengard",
+            "+601155555555",
+            "+601155555555",
+            1,
+            0,
+            0,
+            "This is a test"
+        ]
+
+    def error_mock_function(self, *args, **kwargs):
+        return self.sample_failure_bytes
+
+    def test_converts_confirmed_booking_correctly(self):
+        self.mvlapi._insert_ta_confirmed_booking = self.sneaky_mock_function
+
+        self.assertEqual(self.mvlapi._insert_ta_confirmed_booking(*self.sample_api_arguments), self.sample_response_bytes, "Did not call mock function")
+        self.assertEqual(self.mvlapi.insert_ta_confirmed_booking(*self.sample_api_arguments), self.sample_response_dict, "Did not parse XML to dictionary")
+
+    def test_raises_error_on_failed_confirm(self):
+        self.mvlapi._insert_ta_confirmed_booking = self.error_mock_function
+
+        self.assertEqual(self.mvlapi._insert_ta_confirmed_booking(*self.sample_api_arguments), self.sample_failure_bytes, "Did not call mock function")
+        self.assertRaises(MarketingVillasApiError, self.mvlapi.insert_ta_confirmed_booking, *self.sample_api_arguments)
+
+
 if __name__ == "__main__":
     main()
 
